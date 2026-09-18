@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --fairway: #2d6f33;
+}
+
+body {
+  @apply bg-fairway-50 text-fairway-900;
+}
+
+.card {
+  @apply rounded-xl border border-fairway-100 bg-white p-4 shadow-sm;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-lg bg-fairway-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-fairway-700 disabled:opacity-50;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center rounded-lg border border-fairway-300 bg-white px-4 py-2 text-sm font-medium text-fairway-700 transition hover:bg-fairway-50;
+}
+
+.input {
+  @apply w-full rounded-lg border border-fairway-200 px-3 py-2 text-sm focus:border-fairway-500 focus:outline-none focus:ring-1 focus:ring-fairway-500;
+}

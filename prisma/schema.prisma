@@ -1,0 +1,191 @@
+// Golf-Golf-Golf data model
+// Dev uses SQLite for zero-setup local dev; swap provider to "postgresql"
+// and DATABASE_URL for production (see .env.example).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Identity & social ----------
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  image         String?
+  homeClubName  String?
+  ghinNumber    String? // links to USGA GHIN handicap index, when available
+  isGuest       Boolean  @default(false) // lightweight player added to a round without a real login
+  createdAt     DateTime @default(now())
+
+  roundsPlayed     RoundPlayer[]
+  handicapRecords  HandicapRecord[]
+  closestToPins    ClosestToPin[]
+  following        Follow[]          @relation("follower")
+  followers        Follow[]          @relation("following")
+  ghinIndexSnapshot HandicapIndexSnapshot?
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id])
+  following User @relation("following", fields: [followingId], references: [id])
+
+  @@unique([followerId, followingId])
+}
+
+// A cached "current handicap index" per user, refreshed either by our own
+// WHS calculation (see src/lib/handicap.ts) or by a live GHIN pull.
+model HandicapIndexSnapshot {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id])
+  index          Float
+  source         String // "CALCULATED" | "GHIN"
+  roundsUsed     Int
+  updatedAt      DateTime @updatedAt
+}
+
+// Historical record kept every time a handicap index is (re)computed,
+// so trend charts have something to plot.
+model HandicapRecord {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  index     Float
+  source    String // "CALCULATED" | "GHIN"
+  createdAt DateTime @default(now())
+}
+
+// ---------- Course data ----------
+
+model Course {
+  id          String   @id @default(cuid())
+  name        String
+  city        String?
+  state       String?
+  country     String?  @default("USA")
+  ghinCourseId String? @unique // external course id when sourced from GHIN
+  source      String   @default("MANUAL") // "MANUAL" | "GHIN"
+  createdAt   DateTime @default(now())
+
+  tees   Tee[]
+  rounds Round[]
+}
+
+model Tee {
+  id           String @id @default(cuid())
+  courseId     String
+  course       Course @relation(fields: [courseId], references: [id])
+  name         String // e.g. "Blue", "White", "Red"
+  gender       String @default("ANY") // "MEN" | "WOMEN" | "ANY"
+  courseRating Float
+  slopeRating  Int
+  parTotal     Int
+
+  holes  Hole[]
+  rounds Round[]
+}
+
+model Hole {
+  id         String @id @default(cuid())
+  teeId      String
+  tee        Tee    @relation(fields: [teeId], references: [id])
+  number     Int // 1-18
+  par        Int
+  strokeIndex Int // handicap stroke index 1-18
+  yardage     Int?
+
+  holeScores HoleScore[]
+
+  @@unique([teeId, number])
+}
+
+// ---------- Rounds & scoring ----------
+
+model Round {
+  id          String   @id @default(cuid())
+  courseId    String
+  course      Course   @relation(fields: [courseId], references: [id])
+  teeId       String
+  tee         Tee      @relation(fields: [teeId], references: [id])
+  playedAt    DateTime @default(now())
+  createdById String
+  notes       String?
+  shareToken  String   @unique @default(cuid()) // for public read-only share links / SMS
+  createdAt   DateTime @default(now())
+
+  players       RoundPlayer[]
+  skins         Skin[]
+  closestToPins ClosestToPin[]
+}
+
+model RoundPlayer {
+  id             String  @id @default(cuid())
+  roundId        String
+  round          Round   @relation(fields: [roundId], references: [id])
+  userId         String
+  user           User    @relation(fields: [userId], references: [id])
+  handicapIndex  Float? // snapshot of index used for this round
+  courseHandicap Int? // computed course handicap for this round's tee
+
+  holeScores HoleScore[]
+
+  @@unique([roundId, userId])
+}
+
+model HoleScore {
+  id            String      @id @default(cuid())
+  roundPlayerId String
+  roundPlayer   RoundPlayer @relation(fields: [roundPlayerId], references: [id])
+  holeId        String
+  hole          Hole        @relation(fields: [holeId], references: [id])
+  strokes       Int
+  putts         Int?
+  fairwayHit    Boolean?
+  greenInReg    Boolean?
+
+  @@unique([roundPlayerId, holeId])
+}
+
+// ---------- Skins ----------
+// A skin is awarded to the single player with the strictly lowest
+// score-to-par on a given hole (see src/lib/skins.ts for the calc,
+// including push/carryover handling when scores tie).
+model Skin {
+  id           String  @id @default(cuid())
+  roundId      String
+  round        Round   @relation(fields: [roundId], references: [id])
+  holeNumber   Int
+  winnerUserId String?
+  scoreToPar   Int? // winning score relative to par, e.g. -1 for birdie
+  carriedOver  Boolean @default(false) // true if tied / pushed to next hole
+  value        Int     @default(1) // skin "units" won on this hole (accumulates carryovers)
+
+  @@unique([roundId, holeNumber])
+}
+
+// ---------- Closest to the pin ----------
+
+model ClosestToPin {
+  id             String   @id @default(cuid())
+  roundId        String
+  round          Round    @relation(fields: [roundId], references: [id])
+  holeNumber     Int
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  photoUrl       String?
+  distanceFeet   Float? // manual entry, or output of estimateDistanceFeet()
+  distanceSource String? // "MANUAL" | "ESTIMATED"
+  createdAt      DateTime @default(now())
+}
