@@ -42,6 +42,13 @@ export function ClosestToPinCapture({ roundId, defaultHole }: { roundId: string;
       const scale = Math.min(1, maxWidth / img.width);
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
+      // Canvas is a replaced element sitting in a flex-column container,
+      // which stretches it to the container's full width by default and
+      // (since it has an intrinsic aspect ratio) blows its height up to
+      // match — pin the CSS size to the canvas's actual pixel size so it
+      // renders at the intended scale instead.
+      canvas.style.width = `${canvas.width}px`;
+      canvas.style.height = `${canvas.height}px`;
       const ctx = canvas.getContext("2d");
       ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
       URL.revokeObjectURL(url);
