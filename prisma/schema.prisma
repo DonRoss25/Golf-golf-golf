@@ -1,13 +1,14 @@
 // Golf-Golf-Golf data model
-// Dev uses SQLite for zero-setup local dev; swap provider to "postgresql"
-// and DATABASE_URL for production (see .env.example).
+// Postgres datasource (Vercel Postgres / Neon / any standard Postgres).
+// For zero-setup local dev without a Postgres instance, you can switch
+// `provider` to "sqlite" temporarily — the schema itself is portable.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

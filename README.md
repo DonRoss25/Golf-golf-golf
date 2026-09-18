@@ -8,22 +8,45 @@ PGA Tour scores/odds page.
 ## Stack
 
 - **Next.js 14** (App Router) + **TypeScript**
-- **Prisma** ORM — SQLite for local dev, swap the datasource to Postgres for
-  production (`prisma/schema.prisma`)
+- **Prisma** ORM against **Postgres** (`prisma/schema.prisma`) — works with
+  Vercel Postgres, Neon, Supabase, Railway, or any standard Postgres
 - **NextAuth** (credentials/email+password) for auth
 - **Tailwind CSS** for styling
+- **Vercel Blob** for closest-to-pin photo storage in production (falls
+  back to local disk for zero-setup local dev)
 
 ## Getting started
 
+You need a Postgres database. The fastest way is a free
+[Neon](https://neon.tech) or [Vercel Postgres](https://vercel.com/storage/postgres)
+instance — create one and copy its connection string.
+
 ```bash
 npm install
-cp .env.example .env        # fill in NEXTAUTH_SECRET at minimum
-npm run db:push             # creates prisma/dev.db (SQLite)
+cp .env.example .env        # set DATABASE_URL and NEXTAUTH_SECRET at minimum
+npm run db:push             # applies the schema to your Postgres database
 npm run dev
 ```
 
 Visit `http://localhost:3000`, create an account, add a course, and start a
 round.
+
+## Deploying to Vercel
+
+1. Push this repo to GitHub and import it in the Vercel dashboard (or run
+   `vercel` from the repo root with the [Vercel CLI](https://vercel.com/docs/cli)).
+2. Add a Postgres database: Vercel dashboard → your project → **Storage** →
+   **Create Database** → Postgres (or connect an existing Neon/Supabase
+   instance). This sets `DATABASE_URL` for you automatically.
+3. Add a Blob store for closest-to-pin photos: **Storage** → **Create
+   Database** → Blob. This sets `BLOB_READ_WRITE_TOKEN` automatically.
+4. Set the remaining env vars from `.env.example` under **Settings** →
+   **Environment Variables** — at minimum `NEXTAUTH_SECRET` (a long random
+   string) and `NEXTAUTH_URL` (your deployed URL).
+5. Deploy. `npm run build` will run `prisma generate` automatically via the
+   `postinstall` script; run `npx prisma db push` once (locally, pointed at
+   the production `DATABASE_URL`, or via `vercel env pull` first) to create
+   the tables.
 
 ## Feature map
 
@@ -78,8 +101,7 @@ it degrades gracefully to manual entry when no flagstick is visible.
   against remote hosts, custom middleware rewrites, or Server Actions in a
   way that's exposed to untrusted input, but a major-version upgrade is
   recommended before a public production deployment.
-- **File storage**: closest-to-pin photos are written to `public/uploads`
-  for local/dev convenience. Point `UPLOAD_DIR` (and the upload code in
-  `src/app/api/closest-to-pin/route.ts`) at S3/Cloud Storage in production.
-- **Database**: SQLite is for local dev only; switch the Prisma datasource
-  to Postgres for anything multi-instance.
+- **File storage**: handled by `src/lib/storage.ts` — uses Vercel Blob when
+  `BLOB_READ_WRITE_TOKEN` is set, otherwise falls back to writing into
+  `public/uploads` for local dev (that fallback won't persist on
+  serverless hosts, so set the token in production).

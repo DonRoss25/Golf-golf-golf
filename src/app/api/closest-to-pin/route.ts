@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
-import { randomBytes } from "crypto";
-import { mkdir, writeFile } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/session";
 import { safeUserSelect } from "@/lib/userSelect";
+import { storePhoto } from "@/lib/storage";
 
-const UPLOAD_ROOT = path.join(process.cwd(), "public", "uploads", "ctp");
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic"]);
 const MAX_BYTES = 8 * 1024 * 1024;
 
@@ -52,12 +49,7 @@ export async function POST(req: Request) {
     if (photo.size > MAX_BYTES) {
       return NextResponse.json({ error: "Photo too large (max 8MB)" }, { status: 400 });
     }
-    await mkdir(UPLOAD_ROOT, { recursive: true });
-    const ext = photo.type.split("/")[1] === "jpeg" ? "jpg" : photo.type.split("/")[1];
-    const filename = `${randomBytes(8).toString("hex")}.${ext}`;
-    const buffer = Buffer.from(await photo.arrayBuffer());
-    await writeFile(path.join(UPLOAD_ROOT, filename), buffer);
-    photoUrl = `/uploads/ctp/${filename}`;
+    photoUrl = await storePhoto(photo);
   }
 
   const distanceFeet = typeof distanceFeetRaw === "string" && distanceFeetRaw !== "" ? parseFloat(distanceFeetRaw) : undefined;
